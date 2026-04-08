@@ -1,0 +1,69 @@
+from fastapi import APIRouter, Query, HTTPException
+import asyncio
+import httpx
+from app.services.sentiment.google_scraper import fetch_google_data
+from app.services.sentiment.reddit_scraper import fetch_reddit_data
+from app.services.sentiment.hf_sentiment import analyze_sentiment
+from app.services.sentiment.score_calculator import calculate_safety_score
+from app.services.sentiment.zone_mapper import map_score_to_geojson
+from app.cache.sentiment_cache import get_cached_score, cache_score, generate_location_hash
+import os
+
+router = APIRouter(prefix="/api/v1/zones", tags=["Zones"])
+
+async def reverse_geocode(lat: float, lng: float) -> str:
+    """Gets location name from coordinates."""
+    async with httpx.AsyncClient() as client:
+        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lng}&format=json"
+        res = await client.get(url, headers={"User-Agent": "GuardianGuide/1.0"})
+        data = res.json()
+        address = data.get("address", {})
+        return address.get("suburb") or address.get("city") or "Unknown Area"
+
+@router.get("")
+async def get_safety_zones(lat: float, lng: float, radius: str = "2km"):
+    # 1. Generate Cache Key
+    # We resolve the name first to ensure hash consistency for named areas
+    destination = await reverse_geocode(lat, lng)
+    loc_hash = generate_location_hash(destination, lat, lng)
+    
+    # 2. Check Cache
+    cached = await get_cached_score(loc_hash)
+    if cached:
+        return cached
+
+    # 3. Fetch Pipeline (Parallel)
+    google_task = fetch_google_data(destination)
+    reddit_task = fetch_reddit_data(destination)
+    
+    google_data, reddit_texts = await asyncio.gather(google_task, reddit_task)
+    
+    # 4. Sentiment Analysis
+    reddit_sentiment = await analyze_sentiment(reddit_texts)
+    
+    # 5. Score Calculation
+    result_data = calculate_safety_score(google_data, reddit_sentiment)
+    
+    # 6. Map to GeoJSON
+    geojson = await map_score_to_geojson(
+        destination, 
+        result_data.score, 
+        result_data.zone, 
+        lat, 
+        lng
+    )
+
+    full_response = {
+        "score_details": result_data.__dict__,
+        "geojson": geojson,
+        "location": destination,
+        "timestamp": "now"
+    }
+
+    # 7. Cache & Return
+    await cache_score(loc_hash, full_response)
+    
+    # Note: Save to Supabase logic would happen here in a real prod env
+    # supabase.table("safety_zones").insert(...)
+
+    return full_response

@@ -1,0 +1,20 @@
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from app.api.zones import get_safety_zones # Reuse the pipeline logic
+
+router = APIRouter(prefix="/api/v1/sentiment", tags=["Sentiment"])
+
+class SentimentRequest(BaseModel):
+    destination: str
+    lat: float
+    lng: float
+
+@router.post("")
+async def get_sentiment_analysis(req: SentimentRequest):
+    """
+    Direct endpoint for sentiment stats without full GeoJSON if not needed,
+    but reuses the validated pipeline in zones.
+    """
+    # Logic effectively proxies to the pipeline
+    data = await get_safety_zones(req.lat, req.lng)
+    return data["score_details"]

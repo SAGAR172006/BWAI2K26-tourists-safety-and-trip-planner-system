@@ -1,0 +1,71 @@
+import httpx
+import math
+from typing import Dict, List
+
+async def map_score_to_geojson(destination: str, score: float, zone: str, lat: float, lng: float) -> Dict:
+    """
+    Generates a GeoJSON FeatureCollection for the safety zone.
+    Fetches actual neighborhood boundaries or falls back to a generated circle.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            # Try to get real geometry from Nominatim
+            url = "https://nominatim.openstreetmap.org/search"
+            params = {
+                "q": destination,
+                "format": "json",
+                "polygon_geojson": 1,
+                "limit": 1
+            }
+            headers = {"User-Agent": "GuardianGuide/1.0"}
+            res = await client.get(url, params=params, headers=headers)
+            data = res.json()
+
+            if data and "geojson" in data[0]:
+                geometry = data[0]["geojson"]
+            else:
+                # Fallback: Create a 2km circle polygon (32 points)
+                geometry = create_circle_polygon(lat, lng, 2000)
+
+            return {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "geometry": geometry,
+                    "properties": {
+                        "neighborhood": destination,
+                        "score": score,
+                        "zone": zone,
+                        "center": {"lat": lat, "lng": lng}
+                    }
+                }]
+            }
+    except Exception as e:
+        print(f"Zone Mapper Error: {e}")
+        return {}
+
+def create_circle_polygon(lat: float, lng: float, radius_m: int) -> Dict:
+    """Creates a circular polygon approximation for GeoJSON."""
+    coords = []
+    points = 32
+    # Earth's radius in km
+    R = 6371000
+    
+    lat_rad = math.radians(lat)
+    lng_rad = math.radians(lng)
+    
+    for i in range(points + 1):
+        angle = math.radians(float(i) / points * 360)
+        
+        p_lat = math.asin(math.sin(lat_rad) * math.cos(radius_m/R) + 
+                         math.cos(lat_rad) * math.sin(radius_m/R) * math.cos(angle))
+        
+        p_lng = lng_rad + math.atan2(math.sin(angle) * math.sin(radius_m/R) * math.cos(lat_rad),
+                                   math.cos(radius_m/R) - math.sin(lat_rad) * math.sin(p_lat))
+        
+        coords.append([math.degrees(p_lng), math.degrees(p_lat)])
+        
+    return {
+        "type": "Polygon",
+        "coordinates": [coords]
+    }

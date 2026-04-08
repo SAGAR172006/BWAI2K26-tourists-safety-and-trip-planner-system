@@ -1,0 +1,56 @@
+from dataclasses import dataclass
+from typing import List, Dict
+import numpy as np
+
+@dataclass
+class SentimentResult:
+    score: float         # 0.0 to 10.0
+    zone: str           # GREEN, YELLOW, ORANGE, RED
+    google_score: float
+    social_score: float
+    confidence: float
+
+def calculate_safety_score(google_data: dict, reddit_sentiment: List[Dict]) -> SentimentResult:
+    """
+    Implements the core sentiment-formula.md logic.
+    """
+    # 1. Google Score (0-10)
+    # Average of stars scaled to 10, or overall rating
+    g_raw = google_data.get("overall_rating", 0)
+    google_score = g_raw * 2.0 # 5 stars -> 10 points
+
+    # 2. Social Score (0-10)
+    if not reddit_sentiment:
+        social_score = 5.0 # Neutral baseline
+        social_confidence = 0.2
+    else:
+        values = []
+        for res in reddit_sentiment:
+            if res["label"] == "POSITIVE": values.append(10.0)
+            elif res["label"] == "NEGATIVE": values.append(0.0)
+            else: values.append(5.0)
+        social_score = np.mean(values)
+        social_confidence = min(len(reddit_sentiment) / 30.0, 1.0)
+
+    # 3. Final Weighted Score
+    # 60% Google (Hard data), 40% Social (Sentiment)
+    final_score = (google_score * 0.6) + (social_score * 0.4)
+    
+    # 4. Determine Zone
+    if final_score >= 8.0: zone = "GREEN"
+    elif final_score >= 6.0: zone = "YELLOW"
+    elif final_score >= 4.0: zone = "ORANGE"
+    else: zone = "RED"
+
+    # 5. Confidence
+    # Based on volume of data
+    google_volume = min(google_data.get("total_ratings", 0) / 100.0, 1.0)
+    total_confidence = (google_volume * 0.7) + (social_confidence * 0.3)
+
+    return SentimentResult(
+        score=round(float(final_score), 2),
+        zone=zone,
+        google_score=round(float(google_score), 2),
+        social_score=round(float(social_score), 2),
+        confidence=round(float(total_confidence), 2)
+    )

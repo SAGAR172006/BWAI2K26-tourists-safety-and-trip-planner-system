@@ -1,0 +1,51 @@
+import praw
+import os
+import asyncio
+from datetime import datetime, timedelta
+from typing import List
+
+# Initialize PRAW (PRAW is blocking, but we wrap in thread for async)
+reddit = praw.Reddit(
+    client_id=os.getenv("REDDIT_CLIENT_ID"),
+    client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
+    user_agent="GuardianGuide:v1.0 (by /u/guardianguide_dev)"
+)
+
+async def fetch_reddit_data(location_name: str) -> List[str]:
+    """
+    Fetches top posts and comments from relevant subreddits using PRAW.
+    Filters for posts less than 1 year old.
+    """
+    def sync_fetch():
+        try:
+            query = f"{location_name} safety tourist travel"
+            subreddits = ["travel", "solotravel", "backpacking"]
+            
+            # Check if location has its own subreddit
+            clean_loc = location_name.split(',')[0].strip().replace(" ", "")
+            subreddits.append(clean_loc)
+            
+            target_subs = "+".join(subreddits)
+            all_texts = []
+            one_year_ago = datetime.utcnow() - timedelta(days=365)
+
+            # Search across subreddits
+            search_results = reddit.subreddit(target_subs).search(query, limit=30, time_filter="year")
+            
+            for post in search_results:
+                if datetime.utcfromtimestamp(post.created_utc) > one_year_ago:
+                    # Title + Selftext
+                    all_texts.append(f"{post.title} {post.selftext}")
+                    
+                    # Top 3 comments
+                    post.comments.replace_more(limit=0) # Flatten
+                    for comment in post.comments[:3]:
+                        all_texts.append(comment.body)
+            
+            return all_texts
+        except Exception as e:
+            print(f"Reddit Scraper Error: {e}")
+            return []
+
+    # Run blocking PRAW code in a separate thread
+    return await asyncio.to_thread(sync_fetch)

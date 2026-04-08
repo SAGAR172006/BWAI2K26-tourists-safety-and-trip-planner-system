@@ -1,0 +1,24 @@
+import redis.asyncio as redis
+import json
+import hashlib
+from typing import Optional
+from app.services.sentiment.score_calculator import SentimentResult
+
+REDIS_URL = "redis://localhost:6379"
+
+async def get_cached_score(location_hash: str) -> Optional[dict]:
+    r = redis.from_url(REDIS_URL)
+    data = await r.get(f"sentiment:{location_hash}")
+    return json.loads(data) if data else None
+
+async def cache_score(location_hash: str, result: dict) -> None:
+    r = redis.from_url(REDIS_URL)
+    # TTL: 24 hours
+    await r.setex(f"sentiment:{location_hash}", 86400, json.dumps(result))
+
+def generate_location_hash(destination: str, lat: float, lng: float) -> str:
+    # Rounding coordinates to ~1km precision to improve cache hits
+    lat_r = round(lat, 2)
+    lng_r = round(lng, 2)
+    payload = f"{destination.lower()}:{lat_r}:{lng_r}"
+    return hashlib.md5(payload.encode()).hexdigest()[:12]

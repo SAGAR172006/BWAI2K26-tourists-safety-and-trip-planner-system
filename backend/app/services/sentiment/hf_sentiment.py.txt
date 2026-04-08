@@ -1,0 +1,51 @@
+import httpx
+import os
+import asyncio
+from typing import List, Dict
+
+HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+API_URL = "https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest"
+
+async def analyze_sentiment(texts: List[str]) -> List[Dict]:
+    """
+    Analyzes sentiment using RoBERTa on HF Inference API.
+    Batches inputs and handles 503 retries.
+    """
+    if not texts:
+        return []
+
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    
+    # Process in batches of 10
+    results = []
+    for i in range(0, len(texts), 10):
+        batch = texts[i:i+10]
+        
+        async def call_api(retry=True):
+            async with httpx.AsyncClient() as client:
+                response = await client.post(API_URL, headers=headers, json={"inputs": batch}, timeout=30.0)
+                
+                if response.status_code == 503 and retry:
+                    # Model loading, wait 10s and retry once
+                    await asyncio.sleep(10)
+                    return await call_api(retry=False)
+                
+                if response.status_code != 200:
+                    return [{"label": "NEUTRAL", "score": 0.0}] * len(batch)
+                
+                # API returns list of lists (scores for each label)
+                raw_outputs = response.json()
+                batch_results = []
+                for output in raw_outputs:
+                    # Sort to find highest confidence label
+                    top_score = max(output, key=lambda x: x['score'])
+                    batch_results.append({
+                        "label": top_score['label'].upper(), # POSITIVE, NEUTRAL, NEGATIVE
+                        "score": top_score['score']
+                    })
+                return batch_results
+
+        batch_out = await call_api()
+        results.extend(batch_out)
+        
+    return results

@@ -1,0 +1,68 @@
+import httpx
+import redis.asyncio as redis
+import json
+import os
+from typing import Dict, Any
+
+# Config from environment
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+async def fetch_google_data(location_name: str) -> Dict[str, Any]:
+    """
+    Fetches ratings and reviews for a location using Google Places API.
+    Implements caching with Redis.
+    """
+    cache_key = f"google_raw:{location_name.lower().replace(' ', '_')}"
+    r = redis.from_url(REDIS_URL)
+    
+    # 1. Cache Check
+    cached_data = await r.get(cache_key)
+    if cached_data:
+        return json.loads(cached_data)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # 2. Find Place ID
+            search_url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+            search_params = {
+                "input": location_name,
+                "inputtype": "textquery",
+                "fields": "place_id",
+                "key": GOOGLE_API_KEY
+            }
+            search_res = await client.get(search_url, params=search_params)
+            search_res.raise_for_status()
+            candidates = search_res.json().get("candidates", [])
+            
+            if not candidates:
+                return {}
+
+            place_id = candidates[0]["place_id"]
+
+            # 3. Get Details (Reviews & Ratings)
+            details_url = "https://maps.googleapis.com/maps/api/place/details/json"
+            details_params = {
+                "place_id": place_id,
+                "fields": "reviews,rating,user_ratings_total",
+                "key": GOOGLE_API_KEY
+            }
+            details_res = await client.get(details_url, params=details_params)
+            details_res.raise_for_status()
+            data = details_res.json().get("result", {})
+
+            result = {
+                "star_ratings": [review.get("rating", 0.0) for review in data.get("reviews", [])],
+                "review_texts": [review.get("text", "") for review in data.get("reviews", [])],
+                "overall_rating": data.get("rating", 0.0),
+                "total_ratings": data.get("user_ratings_total", 0)
+            }
+
+            # Cache the raw result for 12 hours
+            await r.setex(cache_key, 43200, json.dumps(result))
+            return result
+
+    except Exception as e:
+        # Prevent pipeline crash on API errors
+        print(f"Google Scraper Error: {e}")
+        return {}

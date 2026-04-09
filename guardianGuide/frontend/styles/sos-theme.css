@@ -1,0 +1,53 @@
+/* ============================================
+   GuardianGuide — SOS Emergency Theme
+   ============================================ */
+
+.sos-theme {
+  --sos-bg: #1A0000;
+  --sos-text: #FFE0E0;
+  --sos-primary: #FF1A1A;
+  --sos-secondary: #CC0000;
+  --sos-glow: rgba(255, 26, 26, 0.5);
+
+  background: radial-gradient(ellipse at center, #2A0000 0%, #0D0000 100%);
+  min-height: 100vh;
+}
+
+.sos-theme .sos-pulse-button {
+  position: relative;
+}
+
+.sos-theme .sos-pulse-button::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  animation: sos-ring-pulse 2s ease-out infinite;
+  border: 2px solid var(--sos-primary);
+  opacity: 0;
+}
+
+@keyframes sos-ring-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+.sos-emergency-card {
+  background: rgba(255, 26, 26, 0.08);
+  border: 1px solid rgba(255, 26, 26, 0.25);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.sos-emergency-card:hover {
+  background: rgba(255, 26, 26, 0.15);
+  border-color: rgba(255, 26, 26, 0.4);
+  transform: translateY(-2px);
+}

@@ -1,7 +1,7 @@
 CREATE TABLE public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL,
+  first_name TEXT,
+  last_name TEXT,
   email TEXT UNIQUE NOT NULL,
   phone TEXT UNIQUE,
   email_verified BOOLEAN DEFAULT false,

@@ -1,0 +1,10 @@
+{
+  "name": "GuardianGuide",
+  "short_name": "GuardianGuide",
+  "description": "Your safety-first intelligent travel planner",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#FAF9F6",
+  "theme_color": "#4B6584",
+  "icons": []
+}

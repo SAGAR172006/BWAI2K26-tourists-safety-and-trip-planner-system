@@ -3,11 +3,41 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import Image from "next/image";
 import { DESTINATIONS } from "@/lib/destinations";
+import { useTripStore } from "@/store/tripStore";
+import { useTrips } from "@/hooks/useTrips";
 
 export default function DestinationPage() {
   const { destinationId } = useParams<{ destinationId: string }>();
   const router = useRouter();
-  const dest = DESTINATIONS.find((d) => d.id === destinationId) || DESTINATIONS[0];
+  const activeTripId = useTripStore((s) => s.activeTripId);
+  const trips = useTripStore((s) => s.trips);
+  const { createTrip } = useTrips();
+  const dest =
+    DESTINATIONS.find((d) => d.id === destinationId) ??
+    ({
+      id: String(destinationId),
+      name: String(destinationId).replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      country: "",
+      emoji: "🌍",
+      summary:
+        "Plan your visit with GuardianGuide — live safety zones, budgets, and AI itineraries tailored to you.",
+      image: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&auto=format&fit=crop",
+    } as const);
+
+  const goPlanner = async () => {
+    let tid = activeTripId;
+    if (!tid) {
+      if (trips.length > 0) {
+        tid = trips[0].id;
+      } else {
+        const t = await createTrip(`Trip to ${dest.name}`, dest.name);
+        tid = t.id;
+      }
+    }
+    router.push(
+      `/planner/${tid}?destination=${encodeURIComponent(dest.name)}&name=${encodeURIComponent(dest.name)}`
+    );
+  };
 
   const images = [dest.image, dest.image, dest.image]; // use same image in 3 slots
 
@@ -58,7 +88,8 @@ export default function DestinationPage() {
           Back
         </button>
         <button
-          onClick={() => router.push(`/planner/new?destination=${encodeURIComponent(dest.name)}`)}
+          type="button"
+          onClick={() => void goPlanner()}
           className="flex items-center gap-2 px-6 py-3 rounded-xl font-medium text-white"
           style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border-strong)" }}
         >

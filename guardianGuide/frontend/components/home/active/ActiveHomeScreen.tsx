@@ -30,6 +30,33 @@ export default function ActiveHomeScreen({ tripId }: Props) {
     fetchReservations();
   }, [tripId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = getSupabaseBrowser();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session || cancelled) return;
+        const u = new URL("/api/zones", window.location.origin);
+        u.searchParams.set("lat", String(lat));
+        u.searchParams.set("lng", String(lng));
+        const res = await fetch(u.toString(), {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const gj = await res.json();
+        if (!cancelled) setGeojson(gj);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
   const fetchReservations = async () => {
     const supabase = getSupabaseBrowser();
     const { data } = await supabase

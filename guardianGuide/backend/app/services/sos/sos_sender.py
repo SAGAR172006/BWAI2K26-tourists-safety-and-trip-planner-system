@@ -1,11 +1,20 @@
 """Send SOS alerts via Twilio SMS and Resend email."""
 import logging
+
 import httpx
 from supabase import create_client
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-_supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+_supabase = None
+
+
+def _client():
+    global _supabase  # noqa: PLW0603
+    if _supabase is None and settings.supabase_url and settings.supabase_service_key:
+        _supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+    return _supabase
 
 
 async def send_sos_alerts(
@@ -17,9 +26,7 @@ async def send_sos_alerts(
     contact_ids: list[str],
 ) -> dict:
     maps_link = f"https://maps.google.com/maps?q={lat},{lng}"
-    full_message = f"{message}
-
-Live location: {maps_link}"
+    full_message = f"{message}\n\nLive location: {maps_link}"
 
     contacts = _get_emergency_contacts(user_id)
     sms_results, email_results = [], []
@@ -42,9 +49,12 @@ Live location: {maps_link}"
 
 
 def _get_emergency_contacts(user_id: str) -> list[dict]:
+    cli = _client()
+    if not cli:
+        return []
     try:
         result = (
-            _supabase.table("emergency_contacts")
+            cli.table("emergency_contacts")
             .select("name,phone,email")
             .eq("user_id", user_id)
             .execute()
@@ -64,7 +74,11 @@ async def _send_sms(to_phone: str, message: str) -> bool:
             resp = await client.post(
                 f"https://api.twilio.com/2010-04-01/Accounts/{settings.twilio_account_sid}/Messages.json",
                 auth=(settings.twilio_account_sid, settings.twilio_auth_token),
-                data={"From": settings.twilio_phone_number, "To": to_phone, "Body": message},
+                data={
+                    "From": settings.twilio_phone_number,
+                    "To": to_phone,
+                    "Body": message,
+                },
             )
             resp.raise_for_status()
             return True
@@ -77,6 +91,7 @@ async def _send_email(to_email: str, to_name: str, from_user: str, message: str)
     if not settings.resend_api_key:
         logger.warning("[SOS] Resend not configured — email not sent")
         return False
+    text_body = f"Emergency alert from {from_user}:\n\n{message}"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
@@ -86,11 +101,9 @@ async def _send_email(to_email: str, to_name: str, from_user: str, message: str)
                     "from": settings.from_email,
                     "to": [to_email],
                     "subject": "EMERGENCY SOS — GuardianGuide",
-                    "text": f"Emergency alert from {from_user}:
-
-{message}",
+                    "text": text_body,
                     "html": (
-                        f"<h2>EMERGENCY SOS</h2>"
+                        "<h2>EMERGENCY SOS</h2>"
                         f"<p>Alert from <strong>{from_user}</strong>:</p>"
                         f"<p>{message.replace(chr(10), '<br>')}</p>"
                     ),

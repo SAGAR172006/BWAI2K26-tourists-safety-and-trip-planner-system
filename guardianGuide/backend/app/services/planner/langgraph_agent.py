@@ -151,8 +151,13 @@ async def run_planner(
     loop = asyncio.get_event_loop()
     final = await loop.run_in_executor(None, _GRAPH.invoke, initial)
 
+    out_status = final.get("status", "success")
+    if strike_result.get("strike_count", 0) >= 1 and out_status == "success":
+        out_status = "strike1"
+
     return {
-        "status": final["status"], "session_id": session_id,
+        "status": out_status,
+        "session_id": session_id,
         "itinerary": final.get("itinerary"),
         "alternatives": final.get("alternatives", []),
         "message": strike_result.get("message", ""),

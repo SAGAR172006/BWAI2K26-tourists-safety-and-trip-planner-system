@@ -30,8 +30,13 @@ async def translate_text(text: str, source_lang: str, target_lang: str) -> Trans
 
             return TranslateTextResponse(
                 translated_text=translated,
-                detected_language=source_lang,
+                source_lang=source_lang,
+                target_lang=target_lang,
             )
     except Exception as exc:
         print(f"[Translate] Error ({source_lang}->{target_lang}): {exc}")
-        return TranslateTextResponse(translated_text=text, detected_language=source_lang)
+        return TranslateTextResponse(
+            translated_text=text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+        )

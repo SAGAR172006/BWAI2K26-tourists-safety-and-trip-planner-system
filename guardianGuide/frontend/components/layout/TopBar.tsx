@@ -3,13 +3,9 @@ import { AlignJustify, CircleUser } from "lucide-react";
 import Link from "next/link";
 import { useUIStore } from "@/store/uiStore";
 import ShieldLogo from "@/components/ui/ShieldLogo";
+import TripDirectory from "@/components/layout/TripDirectory";
 
-interface TopBarProps {
-  showDirectory?: boolean;
-  directoryContent?: React.ReactNode;
-}
-
-export default function TopBar({ showDirectory = false, directoryContent }: TopBarProps) {
+export default function TopBar() {
   const { toggleSidePanel } = useUIStore();
 
   return (
@@ -33,10 +29,9 @@ export default function TopBar({ showDirectory = false, directoryContent }: TopB
         </span>
       </Link>
 
-      {/* Directory (shown in active trip) */}
-      {showDirectory && directoryContent && (
-        <div className="flex-1 mx-8">{directoryContent}</div>
-      )}
+      <div className="hidden md:flex flex-1 mx-6 justify-center min-w-0">
+        <TripDirectory />
+      </div>
 
       {/* Right actions */}
       <div className="flex items-center gap-2">

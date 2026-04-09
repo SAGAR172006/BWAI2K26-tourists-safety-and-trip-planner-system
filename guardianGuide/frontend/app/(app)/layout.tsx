@@ -6,10 +6,12 @@ import SidePanel from "@/components/layout/SidePanel";
 import FloatingSosButton from "@/components/sos/FloatingSosButton";
 import { getSupabaseBrowser } from "@/lib/supabaseClient";
 import { useAuthStore } from "@/store/authStore";
+import { useTrips } from "@/hooks/useTrips";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { setUser, setToken, setLoading } = useAuthStore();
+  const { fetchTrips } = useTrips();
 
   useEffect(() => {
     const supabase = getSupabaseBrowser();
@@ -29,8 +31,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         avatarUrl: session.user.user_metadata?.avatar_url,
       });
       setLoading(false);
+      void fetchTrips();
     });
-  }, [router, setToken, setUser, setLoading]);
+  }, [router, setToken, setUser, setLoading, fetchTrips]);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--color-bg-primary)" }}>

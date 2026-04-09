@@ -72,6 +72,14 @@ export default function SidePanel() {
                     <Plane size={18} />
                     <span className="text-body-sm font-medium">{activeTrip.destination || activeTrip.name}</span>
                   </Link>
+                  <Link
+                    href={`/planner/${activeTrip.id}`}
+                    onClick={() => setSidePanelOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-bg-elevated text-text-secondary hover:text-text-primary transition-all no-underline"
+                  >
+                    <Map size={18} />
+                    <span className="text-body-sm font-medium">Trip planner</span>
+                  </Link>
                 </>
               )}
             </nav>

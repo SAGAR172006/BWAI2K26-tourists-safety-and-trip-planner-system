@@ -4,7 +4,14 @@ from supabase import create_client
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-_supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+_supabase = None
+
+
+def _sb():
+    global _supabase
+    if _supabase is None and settings.supabase_url and settings.supabase_service_key:
+        _supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+    return _supabase
 
 
 async def fetch_booking_emails(user_id: str) -> list[dict]:
@@ -13,8 +20,11 @@ async def fetch_booking_emails(user_id: str) -> list[dict]:
     Requires Gmail token stored in users.gmail_token (JSONB).
     Returns list of {subject, from, date, snippet, body} dicts.
     """
+    cli = _sb()
+    if not cli:
+        return []
     try:
-        result = _supabase.table("users").select("gmail_token").eq("id", user_id).single().execute()
+        result = cli.table("users").select("gmail_token").eq("id", user_id).single().execute()
         token_data = result.data.get("gmail_token") if result.data else None
         if not token_data:
             logger.info("[Gmail] No Gmail token for user %s", user_id)
